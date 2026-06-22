@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Imports\ProductsImport;
 use App\Exports\ProductsExport;
 use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Validators\ValidationException;
 
 class ProductController extends Controller
 {
@@ -23,10 +24,20 @@ class ProductController extends Controller
             'file' => 'required|mimes:csv,xlsx'
         ]);
 
-        Excel::import(
-            new ProductsImport,
-            $request->file('file')
-        );
+        try {
+            Excel::import(
+                new ProductsImport,
+                $request->file('file')
+            );
+        } catch (ValidationException $e) {
+            $errors = collect($e->failures())
+                ->map(fn($failure) => 'Row '.$failure->row().': '.implode(', ', $failure->errors()))
+                ->implode(' ');
+
+            return back()->with('error', 'Import failed: '.$errors);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Import failed: '.$e->getMessage());
+        }
 
         return back()->with(
             'success',
